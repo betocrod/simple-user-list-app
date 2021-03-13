@@ -10,18 +10,28 @@ import android.view.MenuItem
 import android.widget.Button
 import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.NavUtils
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.example.simpleuserlistapp.database.User
+import com.example.simpleuserlistapp.database.UserDatabase
+import com.example.simpleuserlistapp.database.UsersRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 
-class FormActivity : AppCompatActivity() {
+class FormActivity : AppCompatActivity(), CoroutineScope {
 
-    private val repository = UsersRepository.getInstance()
+    private val repository by lazy {
+        UsersRepository.getInstance(UserDatabase.getInstance(this).getUserDao())
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_form)
         setupSaveButton()
+        mJob = Job()
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
     }
 
@@ -40,15 +50,17 @@ class FormActivity : AppCompatActivity() {
     }
 
     private fun save() {
-        val user = User(
-            name = findViewById<EditText>(R.id.eTName).text.toString(),
-            lastName = findViewById<EditText>(R.id.eTLastName).text.toString(),
-            age = getAge(),
-            favoriteColor = findViewById<EditText>(R.id.eTFavoriteColor).text.toString()
-        )
-        repository.add(user)
-        showNotification(user)
-        finish()
+        launch {
+            val user = User(
+                name = findViewById<EditText>(R.id.eTName).text.toString(),
+                lastName = findViewById<EditText>(R.id.eTLastName).text.toString(),
+                age = getAge(),
+                favoriteColor = findViewById<EditText>(R.id.eTFavoriteColor).text.toString()
+            )
+            repository.add(user)
+            showNotification(user)
+            finish()
+        }
     }
 
     private fun showNotification(user: User) {
@@ -72,7 +84,8 @@ class FormActivity : AppCompatActivity() {
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
             }
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
@@ -91,4 +104,8 @@ class FormActivity : AppCompatActivity() {
             return Intent(context, FormActivity::class.java)
         }
     }
+
+    private lateinit var mJob: Job
+    override val coroutineContext: CoroutineContext
+        get() = mJob + Dispatchers.Main
 }

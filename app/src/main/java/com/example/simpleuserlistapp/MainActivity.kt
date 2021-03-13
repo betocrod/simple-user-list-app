@@ -8,11 +8,22 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.simpleuserlistapp.database.User
+import com.example.simpleuserlistapp.database.UserDatabase
+import com.example.simpleuserlistapp.database.UsersRepository
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlin.coroutines.CoroutineContext
 
-class MainActivity : AppCompatActivity(), UsersAdapter.UserItemListener {
+class MainActivity : AppCompatActivity(), UsersAdapter.UserItemListener, CoroutineScope {
 
-    private val repository = UsersRepository.getInstance()
+    private val repository by lazy {
+        UsersRepository.getInstance(UserDatabase.getInstance(this).getUserDao())
+    }
 
     private lateinit var adapter: UsersAdapter
 
@@ -24,7 +35,12 @@ class MainActivity : AppCompatActivity(), UsersAdapter.UserItemListener {
 
     override fun onResume() {
         super.onResume()
-        adapter.setUsers(repository.getAll())
+        mJob = Job()
+        launch {
+            repository.getAll().collect {
+                adapter.setUsers(it)
+            }
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -78,18 +94,26 @@ class MainActivity : AppCompatActivity(), UsersAdapter.UserItemListener {
     }
 
     private fun deleteUser(user: User) {
-        repository.delete(user)
-        adapter.setUsers(repository.getAll())
-        showUndoAction(user)
+        launch {
+            repository.delete(user)
+            showUndoAction(user)
+        }
+        // TODO remove this adapter.setUsers(repository.getAll())
     }
 
     private fun showUndoAction(user: User) {
         val container = findViewById<View>(R.id.cLContainer)
         Snackbar.make(container, "Undo deletion", Snackbar.LENGTH_LONG)
             .setAction("Undo") {
-                repository.add(user)
-                adapter.setUsers(repository.getAll())
+                launch {
+                    repository.add(user)
+                    // TODO remove this adapter.setUsers(repository.getAll())
+                }
             }
             .show()
     }
+
+    private lateinit var mJob: Job
+    override val coroutineContext: CoroutineContext
+        get() = mJob + Dispatchers.Main
 }
